@@ -4,7 +4,13 @@ import { TransactionRoadmap } from "@/features/transactions/components/transacti
 import { useInitiatedTransactions } from "@/hooks/initiated-transactions";
 import { useMemo } from "react";
 import { InitiatedTransaction } from "@/types/api";
-import { getFeeAmount, getFXRateUSDtoZAR, getFXRateZWGtoUSD } from "@/utils/transactionConversions";
+import {
+    convertZWGtoZAR,
+    getFeeAmount,
+    getFXRateUSDtoZAR,
+    getFXRateZWGFtoZAR,
+    getFXRateZWGtoUSD,
+} from "@/utils/transactionConversions";
 
 export const TransactionsBatchRoadmapView = () => {
     const { data, isLoading } = useTransactions({ page: 1, size: 9999 });
@@ -41,7 +47,7 @@ export const TransactionsBatchRoadmapView = () => {
                         // 🔄 Transform each transaction to match InitiatedTransaction type
                         const transformedTx: InitiatedTransaction = {
                             payeeIdentity: tx.payeeIdentity,
-                            correlationId: '',
+                            correlationId: crypto.randomUUID(),
                             payeeMsisdn: tx.phoneNumberPrimary,
                             payee: `${tx.firstName} ${tx.lastName}`,
                             duration: 0,
@@ -52,7 +58,7 @@ export const TransactionsBatchRoadmapView = () => {
                             fxRateToZar: getFXRateUSDtoZAR(),
                             transactionFee: getFeeAmount(),
                             amountSent: tx.monthlyPensionAmount,
-                            amountReceived: tx.monthlyPensionAmount * getFXRateZWGtoUSD() * getFXRateUSDtoZAR(),
+                            amountReceived: convertZWGtoZAR(tx.monthlyPensionAmount, getFXRateZWGFtoZAR()),
                             status: "ACTIVE",
                         };
 

@@ -2,7 +2,6 @@
 
 import React from "react";
 import {
-    Box,
     Typography,
     Paper,
     Table,
@@ -43,6 +42,7 @@ export const LatestTransactionsList = () => {
                         <TableCell>Status</TableCell>
                         <TableCell>Beneficiary Name</TableCell>
                         <TableCell>Amount Received</TableCell>
+                        <TableCell>Time of Transaction</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>

@@ -73,16 +73,20 @@ function createInitiatedTransactionDraft(transaction: Partial<InitiatedTransacti
     const monthlyPensionAmount = (transaction as { monthlyPensionAmount?: unknown }).monthlyPensionAmount;
     const normalizedAmountSent = parseAmount(transaction.amountSent ?? legacyAmount ?? monthlyPensionAmount);
     const normalizedAmountReceived = parseAmount(transaction.amountReceived ?? normalizedAmountSent);
+    const correlationId =
+        typeof transaction.correlationId === 'string' && transaction.correlationId.trim().length > 0
+            ? transaction.correlationId.trim()
+            : SINGLE_PAYMENT_CORRELATION_ID;
 
     return {
         payeeIdentity: transaction.payeeIdentity ?? "no identity",
-        correlationId: SINGLE_PAYMENT_CORRELATION_ID,
+        correlationId,
         payeeMsisdn: normalizeMsisdn(transaction.payeeMsisdn),
         payee: transaction.payee ?? "",
         duration: 20,
         executionDate: new Date().toISOString(),
-        fromBank: "Standard Bank of Zimbabwe (ZWG)",
-        toBank: "Standard Bank of South Africa (ZAF)",
+        fromBank: transaction.fromBank ?? "Standard Bank of Zimbabwe (ZWG)",
+        toBank: transaction.toBank ?? "Standard Bank of South Africa (ZAF)",
         transactionFee: getFeeAmount(),
         fxRateToUSD: getFXRateZWGtoUSD(),
         fxRateToZar: getFXRateUSDtoZAR(),
@@ -234,7 +238,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                     csvFile,
                     tenant: 'greenbank',
                     govstack: false,
-                    correlationId: SINGLE_PAYMENT_CORRELATION_ID,
+                    correlationId: initiatedTx.correlationId,
                 });
             } catch {
                 // Keep roadmap simulation progressing even when backend is unavailable.
@@ -323,7 +327,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                             Payment Details
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Correlation ID: {initiatedTx?.correlationId ?? SINGLE_PAYMENT_CORRELATION_ID}
+                            Correlation ID: {initiatedTx.correlationId}
                         </Typography>
                     </Box>
                     <Box display="flex" gap={2}>
