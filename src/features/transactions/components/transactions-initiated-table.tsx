@@ -54,7 +54,7 @@ export const TransactionsInitiatedTable = () => {
               />
             </TableCell>
             <TableCell>Status</TableCell>
-            <TableCell>Correlation ID</TableCell>
+            <TableCell>Batch ID</TableCell>
             <TableCell>Payee Identity</TableCell>
             <TableCell>Beneficiary Name</TableCell>
             <TableCell>Duration (s)</TableCell>
@@ -108,7 +108,7 @@ export const TransactionsInitiatedTable = () => {
                     </Typography>
                   </Box>
                 </TableCell>
-                <TableCell>{row.correlationId || '-'}</TableCell>
+                <TableCell>{row.batchId ?? '-'}</TableCell>
                 <TableCell>
                   {row.payeeIdentity}
                 </TableCell>
@@ -137,15 +137,13 @@ export const TransactionsInitiatedTable = () => {
                   })}
                 </TableCell>
                 <TableCell>
-                  <TableCell>
-                    <IconButton
-                      size="small"
-                      component={Link}
-                      to={paths.app.transactionInitiated.getHref(row.payeeIdentity)}
-                    >
-                      <Icon baseClassName="material-symbols-outlined">visibility</Icon>
-                    </IconButton>
-                  </TableCell>
+                  <IconButton
+                    size="small"
+                    component={Link}
+                    to={paths.app.transactionInitiated.getHref(row.payeeIdentity)}
+                  >
+                    <Icon baseClassName="material-symbols-outlined">visibility</Icon>
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))

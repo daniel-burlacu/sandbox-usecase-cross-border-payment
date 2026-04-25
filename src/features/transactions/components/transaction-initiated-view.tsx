@@ -117,7 +117,7 @@ export const TransactionInitiatedView = ({
                 </Box>
 
                 <Box display="flex" flexDirection="column" gap={1}>
-                    <InfoRow label="Correlation ID" value={tx.correlationId} />
+                    <InfoRow label="Batch ID" value={tx.batchId ?? '—'} />
                     <InfoRow label="Payee Identity" value={tx.payeeIdentity} />
                     <InfoRow label="Beneficiary Name" value={tx.payee} />
                     <InfoRow label="Duration" value={`${tx.duration} seconds`} />

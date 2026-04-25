@@ -53,8 +53,21 @@ export type SubmitBatchParams = {
 
 export type BatchSubmitResult = {
   correlationId: string;
+  /** UUID segment from API `PollingPath` when present. */
+  batchId?: string;
   [key: string]: unknown;
 };
+
+const BATCH_SUMMARY_UUID =
+  /\/batch\/Summary\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/i;
+
+export function parseBatchIdFromPollingPath(pollingPath: unknown): string | undefined {
+  if (typeof pollingPath !== 'string') {
+    return undefined;
+  }
+  const m = pollingPath.match(BATCH_SUMMARY_UUID);
+  return m?.[1];
+}
 
 async function appendCsvToForm(form: FormData, csvFile: File): Promise<void> {
   const csvText = await csvFile.text();
@@ -120,5 +133,6 @@ export async function submitBatch({
     { headers },
   );
 
-  return { correlationId, ...(result ?? {}) };
+  const batchId = parseBatchIdFromPollingPath(result?.PollingPath);
+  return { ...(result ?? {}), correlationId, batchId };
 }

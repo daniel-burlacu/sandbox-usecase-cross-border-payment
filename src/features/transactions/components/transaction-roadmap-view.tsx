@@ -158,6 +158,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
     const txAddedRef = useRef(false); // Prevent adding duplicate transactions
     const completionHandledRef = useRef(false);
     const paymentSubmittedRef = useRef(false);
+    const batchIdFromPaymentRef = useRef<string | undefined>(undefined);
     const [initiated, setInitiated] = useState(false);
     const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
     const [showFinal, setShowFinal] = useState(false);
@@ -194,6 +195,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
             if (isPrime(num) && !txAddedRef.current) {
                 const completedTx: InitiatedTransaction = {
                     ...initiatedTx,
+                    batchId: batchIdFromPaymentRef.current ?? initiatedTx.batchId,
                     status: "COMPLETED",
                     executionDate: new Date().toISOString(),
                 };
@@ -234,12 +236,16 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
             setIsSubmittingPayment(true);
             try {
                 const csvFile = buildSinglePaymentCsv(initiatedTx);
-                await submitBatch({
+                const res = await submitBatch({
                     csvFile,
                     tenant: 'greenbank',
                     govstack: false,
                     correlationId: initiatedTx.correlationId,
                 });
+                if (res.batchId) {
+                    batchIdFromPaymentRef.current = res.batchId;
+                    setInitiatedTx((prev) => ({ ...prev, batchId: res.batchId ?? prev.batchId }));
+                }
             } catch {
                 // Keep roadmap simulation progressing even when backend is unavailable.
             } finally {
@@ -273,6 +279,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
         }
 
         paymentSubmittedRef.current = false;
+        batchIdFromPaymentRef.current = undefined;
         setInitiated(true);
         setStepIndex(0);
         setShowFinal(false);
@@ -287,6 +294,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
         txAddedRef.current = false;
         completionHandledRef.current = false;
         paymentSubmittedRef.current = false;
+        batchIdFromPaymentRef.current = undefined;
         setInitiatedTx(createInitiatedTransactionDraft(transaction));
         setBroadcastCompleted(false, {
             id: 0,
@@ -323,11 +331,8 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                 }}
             ><Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                     <Box>
-                        <Typography variant="h5" mb={1} color="#555656ff" fontWeight={800}>
+                        <Typography variant="h5" color="#555656ff" fontWeight={800}>
                             Payment Details
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Correlation ID: {initiatedTx.correlationId}
                         </Typography>
                     </Box>
                     <Box display="flex" gap={2}>
@@ -449,7 +454,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                     <TransactionFinalStatus
                         status={status}
                         payee={initiatedTx.payee}
-
+                        batchId={batchIdFromPaymentRef.current ?? initiatedTx.batchId}
                         transaction={{
                             amount: initiatedTx?.amountReceived.toLocaleString(undefined, {
                                 style: "currency",

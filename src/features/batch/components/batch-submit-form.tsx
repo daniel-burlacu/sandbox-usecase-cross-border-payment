@@ -36,10 +36,15 @@ import { env } from '@/config/env';
 
 type Status = 'idle' | 'signing' | 'submitting' | 'success' | 'error';
 
-function toInitiatedTransaction(b: Beneficiary, correlationId: string): InitiatedTransaction {
+function toInitiatedTransaction(
+  b: Beneficiary,
+  correlationId: string,
+  batchId?: string,
+): InitiatedTransaction {
   return {
     payeeIdentity: b.payeeIdentity,
     correlationId,
+    batchId,
     payee: `${b.firstName} ${b.lastName}`,
     duration: 2.5,
     executionDate: new Date().toISOString(),
@@ -86,7 +91,9 @@ export const BatchSubmitForm = () => {
         privateKey,
       });
       const matched = await matchBeneficiariesFromCsv(file);
-      matched.forEach((b) => addTransaction(toInitiatedTransaction(b, res.correlationId)));
+      matched.forEach((b) =>
+        addTransaction(toInitiatedTransaction(b, res.correlationId, res.batchId)),
+      );
       setSubmittedCount(matched.length);
       setStatus('success');
       setResult(res);

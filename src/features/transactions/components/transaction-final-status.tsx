@@ -11,10 +11,12 @@ type TransactionFinalStatusProps = {
     currency: string
   },
   randomNumber?: number;
+  /** Batch id from payment API (`PollingPath`), shown when payment completes successfully. */
+  batchId?: string;
   handleRefresh?: () => void;
 }
 
-const TransactionFinalStatus = ({ status, payee, transaction, randomNumber, handleRefresh }: TransactionFinalStatusProps) => {
+const TransactionFinalStatus = ({ status, payee, transaction, randomNumber, batchId, handleRefresh }: TransactionFinalStatusProps) => {
   const navigate = useNavigate();
   if (status === undefined) {
     // Optionally show a spinner or some placeholder
@@ -54,6 +56,11 @@ const TransactionFinalStatus = ({ status, payee, transaction, randomNumber, hand
         <Typography variant="h6" fontWeight={700} color={status ? "#4caf50" : "#BA1A1A"}>
           Payment {status ? "Completed" : "Failed"}!
         </Typography>
+        {batchId ? (
+          <Typography variant="body2" color="text.secondary" textAlign="center">
+            <strong>Batch ID:</strong> {batchId}
+          </Typography>
+        ) : null}
         <Typography>
           <strong>Funds Received by:</strong> {payee}
         </Typography>
