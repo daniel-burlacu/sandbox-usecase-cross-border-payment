@@ -1,5 +1,5 @@
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 
 import { paths } from '@/config/paths';
@@ -105,7 +105,7 @@ export const createAppRouter = (queryClient: QueryClient) =>
 export const AppRouter = () => {
   const queryClient = useQueryClient();
 
-  const router = useMemo(() => createAppRouter(queryClient), [queryClient]);
+  const [router] = useState(() => createAppRouter(queryClient));
 
   return <RouterProvider router={router} />;
 };

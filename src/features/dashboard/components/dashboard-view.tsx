@@ -5,8 +5,6 @@ import { TransactionsTable } from '@/features/transactions/components/transactio
 import { useTransactions } from '@/features/transactions/api/get-transactions';
 import { LatestTransactionsList } from '@/features/transactions/components/latest-transactions-list';
 import { useNavigate } from 'react-router-dom';
-// Import CountryFlag from 'react-country-flag' or your actual flag component
-import CountryFlag from 'react-country-flag';
 import { useInitiatedTransactions } from '@/hooks/initiated-transactions';
 import { useEffect, useState } from 'react';
 
@@ -21,31 +19,7 @@ export const DashboardView = () => {
     const [readyForPayment, setReadyForPayment] = useState(0);
     const { transactionsInitiated } = useInitiatedTransactions();
     const activeCount = data?.content.filter((c) => c.status === "ACTIVE").length ?? 0;
-    const pendingCount = data?.content.filter((c) => c.status === "PENDING").length ?? 0;
-    const rejectedCount = data?.content.filter((c) => c.status === "REJECTED").length ?? 0;
-    // Dummy implementation for countryFlag, replace with your actual implementation or import
-    const countryFlag = (code: string, style = {}) => (
-        <CountryFlag
-            countryCode={code}
-            svg
-            style={{
-                width: '1.6em',
-                height: '1.6em',
-                borderRadius: '3px',
-                boxShadow: '0 0 1px #aaa',
-                ...style,
-            }}
-            title={code}
-        />
-    );
-
-    // Map currency codes to country codes for flag display
-    const isoMap: Record<string, string> = {
-        ZWL: 'ZW', // Zimbabwe Dollar -> Zimbabwe
-        USD: 'US', // US Dollar -> United States
-        ZAR: 'ZA', // South African Rand -> South Africa
-    };
-    const numberOfTransactions = data?.content.filter((tx) => tx.status === "ACTIVE").length || 0;
+    const outstandingCount = Math.max(0, activeCount - transactionsInitiated.length);
 
     useEffect(() => {
         if (data?.content) {
@@ -105,6 +79,7 @@ export const DashboardView = () => {
                                 text: 'Initiate',
                                 action: () => navigate('/transactions-batch-roadmap'),   // ✅ go to new page
                                 variant: 'contained',
+                                disabled: outstandingCount === 0,
                                 sx: {
                                     backgroundColor: '#426834',
                                     color: '#FFF',
@@ -113,7 +88,9 @@ export const DashboardView = () => {
                             }}
                         >
                             <Typography color="#43483F" fontSize={14} sx={{ minHeight: 42 }}>
-                                There are {activeCount} new outstanding pension payments for today.
+                                {outstandingCount > 0
+                                    ? `There are ${outstandingCount} new outstanding pension payments for today.`
+                                    : 'No outstanding pension payments'}
                             </Typography>
                         </Container>
                     </Grid>

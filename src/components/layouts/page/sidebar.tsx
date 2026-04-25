@@ -45,7 +45,7 @@ export const Sidebar = ({ isSidebarOpen, openSidebar, numberOfTransactions }: Si
   useEffect(() => {
     setTransactionsInitiated(transactionsInitiated.length);
     if (numberOfTransactions !== undefined) {
-      setTxNumber(numberOfTransactions - transactionsInitiated.length);
+      setTxNumber(Math.max(0, numberOfTransactions - transactionsInitiated.length));
     }
   }, [transactionsInitiated, numberOfTransactions]);
   const navigation = [
@@ -58,8 +58,8 @@ export const Sidebar = ({ isSidebarOpen, openSidebar, numberOfTransactions }: Si
   ].filter(Boolean) as SideNavigationItem[];
 
   const footer = [
-    { name: 'link1', to: 'https://', icon: 'open_in_new' },
-    { name: 'link2', to: 'https://', icon: 'open_in_new' },
+    { name: 'GovStack', to: 'https://govstack.global/', icon: 'open_in_new' },
+    { name: 'Mifos', to: 'https://mifos.org/', icon: 'open_in_new' },
   ].filter(Boolean) as SideNavigationItem[];
 
   return (

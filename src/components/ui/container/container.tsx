@@ -7,6 +7,7 @@ interface ButtonProps {
     action: () => void;
     color?: 'primary' | 'secondary' | 'error' | 'info' | 'warning' | 'success' | 'inherit';
     variant?: 'text' | 'outlined' | 'contained';
+    disabled?: boolean;
     sx?: SxProps<Theme>;
 }
 
@@ -91,6 +92,7 @@ const Container = ({ title, tooltip, children, sx, button }: ContainerProps) => 
                     onClick={button.action}
                     variant={button.variant ?? 'contained'}
                     color={button.color ?? 'primary'}
+                    disabled={button.disabled}
                     sx={{
                         mt: 2,
                         backgroundColor: '#F8FAF0',

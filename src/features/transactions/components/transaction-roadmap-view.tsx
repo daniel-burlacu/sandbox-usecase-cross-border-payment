@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     Box,
     Button,
+    CircularProgress,
     Typography,
     Paper,
     Stepper,
@@ -10,14 +11,12 @@ import {
     styled
 } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
-import CloseIcon from "@mui/icons-material/Close";
 import { useTransactionBroadcast } from '@/hooks/transaction-broadcast-state';
 import TransactionFinalStatus from "./transaction-final-status";
 import { InitiatedTransaction } from "@/types/api";
 import { useInitiatedTransactions } from "@/hooks/initiated-transactions";
-import { convertZWGtoZAR, getFeeAmount, getFXRateZWGFtoZAR } from "@/utils/transactionConversions";
-import { getFXRateZWGtoUSD, getFXRateUSDtoZAR, getTransactionFeeAmount } from "@/utils/transactionConversions";
-import { get } from "http";
+import { getFeeAmount, getFXRateZWGtoUSD, getFXRateUSDtoZAR } from "@/utils/transactionConversions";
+import { submitBatch } from "@/features/batch/api/submit-batch";
 
 // Helper: Check if a number is prime
 const isPrime = (n: number): boolean => {
@@ -37,9 +36,63 @@ const steps = [
 ];
 
 import StepConnector, { stepConnectorClasses } from "@mui/material/StepConnector";
-import { CallReceivedTwoTone } from "@mui/icons-material";
 
-const CustomConnector = styled(StepConnector)(({ theme }) => ({
+const SINGLE_PAYMENT_CORRELATION_ID = '61ed1793-8150-439e-8ade-d09c633fe823';
+
+function normalizeMsisdn(value: string | undefined): string {
+    if (!value) return '';
+    return value.replace(/[+\-\s()]/g, '');
+}
+
+function parseAmount(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const parsed = Number(value.replace(/[^0-9.-]/g, ''));
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+}
+
+function buildSinglePaymentCsv(transaction: InitiatedTransaction): File {
+    const header =
+        'id,request_id,payment_mode,payer_identifier_type,payer_identifier,payee_identifier_type,payee_identifier,amount,currency,note';
+    const sanitizedPayeeIdentifier =
+        normalizeMsisdn(transaction.payeeMsisdn) || transaction.payeeIdentity.replace(/\D/g, '') || '27000000001';
+    const row =
+        `0,${crypto.randomUUID()},MASTERCARD_CBS,MSISDN,27000000000,MSISDN,${sanitizedPayeeIdentifier},${transaction.amountSent},ZAR,GovStack pension - ${transaction.payee} (${transaction.payeeIdentity})`;
+
+    return new File([[header, row].join('\n')], 'bulk-govstack-mastercard.csv', {
+        type: 'text/csv',
+    });
+}
+
+function createInitiatedTransactionDraft(transaction: Partial<InitiatedTransaction>): InitiatedTransaction {
+    const legacyAmount = (transaction as { amount?: unknown; monthlyPensionAmount?: unknown }).amount;
+    const monthlyPensionAmount = (transaction as { monthlyPensionAmount?: unknown }).monthlyPensionAmount;
+    const normalizedAmountSent = parseAmount(transaction.amountSent ?? legacyAmount ?? monthlyPensionAmount);
+    const normalizedAmountReceived = parseAmount(transaction.amountReceived ?? normalizedAmountSent);
+
+    return {
+        payeeIdentity: transaction.payeeIdentity ?? "no identity",
+        correlationId: SINGLE_PAYMENT_CORRELATION_ID,
+        payeeMsisdn: normalizeMsisdn(transaction.payeeMsisdn),
+        payee: transaction.payee ?? "",
+        duration: 20,
+        executionDate: new Date().toISOString(),
+        fromBank: "Standard Bank of Zimbabwe (ZWG)",
+        toBank: "Standard Bank of South Africa (ZAF)",
+        transactionFee: getFeeAmount(),
+        fxRateToUSD: getFXRateZWGtoUSD(),
+        fxRateToZar: getFXRateUSDtoZAR(),
+        amountSent: normalizedAmountSent,
+        amountReceived: normalizedAmountReceived,
+        status: "IN_PROGRESS",
+    };
+}
+
+const CustomConnector = styled(StepConnector)(() => ({
     [`&.${stepConnectorClasses.alternativeLabel}`]: {
         top: 22, // aligns line with step circle
     },
@@ -57,10 +110,12 @@ const CustomConnector = styled(StepConnector)(({ theme }) => ({
     },
 }));
 
-const StatusBox = styled(Box)<{ active?: boolean; completed?: boolean }>(
+const StatusBox = styled(Box, {
+    shouldForwardProp: (prop) => prop !== 'active' && prop !== 'completed',
+})<{ active?: boolean; completed?: boolean }>(
     ({ active, completed }) => ({
-        p: 2,
-        mt: 1,
+        padding: 16,
+        marginTop: 8,
         border: "1px solid #e0e0e0",
         borderRadius: 8,
         backgroundColor: "#fafafa",
@@ -89,50 +144,39 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
 
     const location = useLocation();
     const navigate = useNavigate();
-    const transaction = propTransaction || location.state || {};
-    const transactionBroadcast = useTransactionBroadcast();
-    const { addTransaction } = useInitiatedTransactions(); // <-- GET IT HERE
+    const transaction = (propTransaction || location.state || {}) as Partial<InitiatedTransaction>;
+    const setBroadcastCompleted = useTransactionBroadcast((state) => state.setBroadcastCompleted);
+    const { addTransaction } = useInitiatedTransactions();
 
     const [stepIndex, setStepIndex] = useState(0);
     const [randomNumber, setRandomNumber] = useState<number | null>(null);
     const [status, setStatus] = useState<boolean | undefined>(undefined);
-    const [txAdded, setTxAdded] = useState(false); // Prevent adding duplicate transactions
+    const txAddedRef = useRef(false); // Prevent adding duplicate transactions
+    const completionHandledRef = useRef(false);
+    const paymentSubmittedRef = useRef(false);
     const [initiated, setInitiated] = useState(false);
-    const [showFinal, setShowFinal] = useState(false);  // ✅ NEW
-    const [initiatedTx, setInitiatedTx] = useState<InitiatedTransaction | null>(null);
-    //const num = Math.floor(Math.random() * 99) + 2;
+    const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+    const [showFinal, setShowFinal] = useState(false);
+    const [initiatedTx, setInitiatedTx] = useState<InitiatedTransaction>(
+        createInitiatedTransactionDraft(transaction),
+    );
     const num = 2;
-    const duration = 20; // or measure time7
 
     useEffect(() => {
-        const execDate = new Date().toISOString();
-        // Just for demo, let's say process took 20s (replace with your actual duration)
+        if (!initiated || completionHandledRef.current) {
+            return;
+        }
 
-        // Build InitiatedTransaction object
-        const initiatedTx: InitiatedTransaction = {
-            payeeIdentity: transaction.payeeIdentity ?? "no identity",
-            payee: transaction.payee ?? "",
-            duration,
-            executionDate: execDate,
-            fromBank: "Standard Bank of Zimbabwe (ZWG)",
-            toBank: "Standard Bank of South Africa (ZAF)",
-            transactionFee: getFeeAmount(),
-            fxRateToUSD: getFXRateZWGtoUSD(),
-            fxRateToZar: getFXRateUSDtoZAR(),
-            amountSent: transaction.amountSent ?? 0,
-            amountReceived: transaction.amountReceived ?? 0,
-            status: "COMPLETED",
-        };
-        setInitiatedTx(initiatedTx);   // ✅ save it globally
-        if (stepIndex === steps.length - 1 && randomNumber === null) { // only do this if not done already
+        if (stepIndex === steps.length - 1) {
+            completionHandledRef.current = true;
             setRandomNumber(num);
             setStatus(isPrime(num));
 
             // Update global store for broadcast
-            transactionBroadcast.setBroadcastCompleted(isPrime(num), {
+            setBroadcastCompleted(isPrime(num), {
                 id: 21,
                 broadcast: "baf6c711-4858-484e-a7a5-23661a219cce",
-                content: "Payment completed successfully. You have received your funds.".concat(" ", initiatedTx?.amountReceived.toLocaleString(undefined, {
+                content: "Payment completed successfully. You have received your funds.".concat(" ", initiatedTx.amountReceived.toLocaleString(undefined, {
                     style: "currency",
                     currency: "ZAR",
                 })),
@@ -143,31 +187,70 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
             });
 
             // --- ADD TRANSACTION ONLY IF PRIME ---
-            if (isPrime(num) && !txAdded) {
-                const execDate = new Date().toISOString();
-                // Just for demo, let's say process took 20s (replace with your actual duration)
-
-                setInitiatedTx(prev => prev ? { ...prev, status: "COMPLETED" } : prev);  // ✅ update status only
-                addTransaction({ ...initiatedTx!, status: "COMPLETED" });
-                setTxAdded(true);
+            if (isPrime(num) && !txAddedRef.current) {
+                const completedTx: InitiatedTransaction = {
+                    ...initiatedTx,
+                    status: "COMPLETED",
+                    executionDate: new Date().toISOString(),
+                };
+                setInitiatedTx(completedTx);
+                addTransaction(completedTx);
+                txAddedRef.current = true;
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stepIndex, randomNumber]);
+    }, [addTransaction, initiated, initiatedTx, num, setBroadcastCompleted, stepIndex]);
 
     useEffect(() => {
-        if (initiated && stepIndex < steps.length - 1) {
-            const interval = setInterval(() => {
-                setStepIndex((prev) => {
-                    if (prev < steps.length - 1) {
-                        return prev + 1;
-                    }
-                    return prev;
-                });
-            }, 4000); // every 4 seconds
-            return () => clearInterval(interval);
+        if (!initiated) {
+            return;
         }
-    }, [initiated, stepIndex]);
+
+        const interval = setInterval(() => {
+            setStepIndex((prev) => {
+                if (prev >= steps.length - 1) {
+                    clearInterval(interval);
+                    return prev;
+                }
+                return prev + 1;
+            });
+        }, 4000);
+
+        return () => clearInterval(interval);
+    }, [initiated]);
+
+    useEffect(() => {
+        if (!initiated || stepIndex < 2 || paymentSubmittedRef.current) {
+            return;
+        }
+
+        paymentSubmittedRef.current = true;
+        let active = true;
+
+        const submitSinglePayment = async () => {
+            setIsSubmittingPayment(true);
+            try {
+                const csvFile = buildSinglePaymentCsv(initiatedTx);
+                await submitBatch({
+                    csvFile,
+                    tenant: 'greenbank',
+                    govstack: false,
+                    correlationId: SINGLE_PAYMENT_CORRELATION_ID,
+                });
+            } catch {
+                // Keep roadmap simulation progressing even when backend is unavailable.
+            } finally {
+                if (active) {
+                    setIsSubmittingPayment(false);
+                }
+            }
+        };
+
+        void submitSinglePayment();
+
+        return () => {
+            active = false;
+        };
+    }, [initiated, initiatedTx, stepIndex]);
 
     // ✅ When last step completes, wait 2s then show TransactionFinalStatus
     useEffect(() => {
@@ -181,20 +264,27 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
     }, [stepIndex, initiated]);
 
     const handleInitiate = () => {
+        if (initiated || isSubmittingPayment) {
+            return;
+        }
 
-
+        paymentSubmittedRef.current = false;
         setInitiated(true);
-        setStepIndex(0);      // Reset for fresh run
-        setShowFinal(false);  // Hide final until completed
+        setStepIndex(0);
+        setShowFinal(false);
     };
 
     const handleRefresh = () => {
         setStepIndex(0);
         setInitiated(false);
+        setIsSubmittingPayment(false);
         setRandomNumber(null);
         setStatus(undefined);
-        setTxAdded(false); // reset for possible next transaction
-        transactionBroadcast.setBroadcastCompleted(false, {
+        txAddedRef.current = false;
+        completionHandledRef.current = false;
+        paymentSubmittedRef.current = false;
+        setInitiatedTx(createInitiatedTransactionDraft(transaction));
+        setBroadcastCompleted(false, {
             id: 0,
             broadcast: "",
             content: "",
@@ -228,15 +318,21 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                     position: "relative",
                 }}
             ><Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-                    <Typography variant="h5" mb={2} color="#555656ff" fontWeight={800}>
-                        Payment Details
-                    </Typography>
+                    <Box>
+                        <Typography variant="h5" mb={1} color="#555656ff" fontWeight={800}>
+                            Payment Details
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Correlation ID: {initiatedTx?.correlationId ?? SINGLE_PAYMENT_CORRELATION_ID}
+                        </Typography>
+                    </Box>
                     <Box display="flex" gap={2}>
                         {!initiated && <Button
                             variant="contained"
                             color="error"
+                            disabled={isSubmittingPayment}
                             onClick={() => {
-                                transactionBroadcast.setBroadcastCompleted(false, undefined);
+                                setBroadcastCompleted(false, undefined);
                                 navigate("/"); // ✅ send user back to dashboard or transactions list
                             }}
                         >
@@ -248,6 +344,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                                 variant="contained"
                                 color="success"
                                 onClick={handleInitiate}
+                                disabled={isSubmittingPayment}
                             >
                                 Initiate Payment
                             </Button>
@@ -320,6 +417,11 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                                         currency: "ZAR",
                                         minimumFractionDigits: 2,
                                     })}</Typography>
+                                    {isSubmittingPayment && (
+                                        <Box mt={1} display="flex" justifyContent="center">
+                                            <CircularProgress size={16} />
+                                        </Box>
+                                    )}
                                 </StatusBox>
                             </StepLabel>
                         </Step>
@@ -342,7 +444,7 @@ export const TransactionRoadmap = ({ propTransaction, compact = false }: Transac
                 {showFinal && (
                     <TransactionFinalStatus
                         status={status}
-                        payee={transaction.payee}
+                        payee={initiatedTx.payee}
 
                         transaction={{
                             amount: initiatedTx?.amountReceived.toLocaleString(undefined, {

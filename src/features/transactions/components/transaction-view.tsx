@@ -147,6 +147,7 @@ export const TransactionView = ({ payeeIdentity }: { payeeIdentity: string }) =>
         navigate('/transaction-roadmap', {
             state: {
                 payeeIdentity: transactionData.payeeIdentity,
+                payeeMsisdn: transactionData.phoneNumberPrimary,
                 fromBank: transactionData.bankName,
                 fromCountry: transactionData.currentCountry,
                 fromAccount: transactionData.financialAddress,

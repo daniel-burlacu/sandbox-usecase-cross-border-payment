@@ -53,6 +53,7 @@ export const TransactionsTable = ({
   showFilters = false,
   showCheckBox
 }: TransactionsTableProps) => {
+  const normalizeMsisdn = (value: string): string => value.replace(/[+\-\s()]/g, '');
   const [rowsPerPage, setRowsPerPage] = useState(initialRowsPerPage);
   const [page, setPage] = useState(0);
   const [rows, setRows] = useState<Beneficiary[]>([]);
@@ -241,6 +242,8 @@ export const TransactionsTable = ({
     // Fill or calculate any missing fields as needed!
     const state: InitiatedTransaction = {
       payeeIdentity: transactionData.payeeIdentity,
+      correlationId: '',
+      payeeMsisdn: normalizeMsisdn(transactionData.phoneNumberPrimary),
       payee: `${transactionData.firstName} ${transactionData.lastName}`,
       duration: 0, // Placeholder, or calculate if available
       executionDate: new Date().toISOString(), // Now, or from your data
@@ -473,7 +476,7 @@ export const TransactionsTable = ({
                         <span style={{ margin: '0 6px' }}>→</span>
                         {countryFlag(isoMap[row.currentCountry])}
                       </span>
-                      <Typography variant="body2" sx={{ fontSize: 13, display: 'flex', alignItems: 'center' }}>
+                      <Typography component="div" variant="body2" sx={{ fontSize: 13, display: 'flex', alignItems: 'center' }}>
                         {row.homeCountry || row.nationality}
                         <Box sx={{ width: 13, display: 'inline-block' }} />
 

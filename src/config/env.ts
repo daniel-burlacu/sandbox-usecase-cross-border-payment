@@ -6,6 +6,7 @@ const createEnv = () => {
     THREAT_API_URL: z.string(),
     LOG_API_URL: z.string(),
     BULK_PROCESSOR_URL: z.string(),
+    DEFAULT_PRIVATE_KEY_MIFOS: z.string(),
     APP_URL: z.string().optional().default('http://localhost:3000'),
   });
 
@@ -13,6 +14,9 @@ const createEnv = () => {
     const [key, value] = curr;
     if (key.startsWith('VITE_APP_')) {
       acc[key.replace('VITE_APP_', '')] = value;
+    }
+    if (key === 'DEFAULT_PRIVATE_KEY_MIFOS') {
+      acc[key] = value;
     }
     return acc;
   }, {});

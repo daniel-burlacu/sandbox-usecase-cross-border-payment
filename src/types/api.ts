@@ -128,6 +128,8 @@ export type Log = {
 
 export type InitiatedTransaction = {
   payeeIdentity: string;
+  correlationId: string;
+  payeeMsisdn?: string;
   payee: string;
   duration: number; // in seconds or ms, your choice
   executionDate: string; // ISO string or Date

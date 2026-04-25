@@ -10,7 +10,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate } from 'react-router-dom';
 import { useInitiatedTransactions } from '@/hooks/initiated-transactions';
-import { getTransactionFeeAmount, convertZWGtoUSD, getFeeAmount, getFXRateUSDtoZAR } from '@/utils/transactionConversions';
+import { getFeeAmount } from '@/utils/transactionConversions';
 import { getFXRateZWGFtoZAR } from '@/utils/transactionConversions';
 
 interface TransactionInitiatedViewProps {
@@ -117,6 +117,7 @@ export const TransactionInitiatedView = ({
                 </Box>
 
                 <Box display="flex" flexDirection="column" gap={1}>
+                    <InfoRow label="Correlation ID" value={tx.correlationId} />
                     <InfoRow label="Payee Identity" value={tx.payeeIdentity} />
                     <InfoRow label="Beneficiary Name" value={tx.payee} />
                     <InfoRow label="Duration" value={`${tx.duration} seconds`} />

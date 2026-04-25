@@ -22,7 +22,6 @@ import {
 import React, { useRef, useState } from 'react';
 
 import {
-  DEFAULT_PRIVATE_KEY,
   TENANTS,
   Tenant,
   BatchSubmitResult,
@@ -33,12 +32,14 @@ import {
 } from '@/features/batch/api/submit-batch';
 import { useInitiatedTransactions } from '@/hooks/initiated-transactions';
 import { Beneficiary, InitiatedTransaction } from '@/types/api';
+import { env } from '@/config/env';
 
 type Status = 'idle' | 'signing' | 'submitting' | 'success' | 'error';
 
-function toInitiatedTransaction(b: Beneficiary): InitiatedTransaction {
+function toInitiatedTransaction(b: Beneficiary, correlationId: string): InitiatedTransaction {
   return {
     payeeIdentity: b.payeeIdentity,
+    correlationId,
     payee: `${b.firstName} ${b.lastName}`,
     duration: 2.5,
     executionDate: new Date().toISOString(),
@@ -61,7 +62,7 @@ export const BatchSubmitForm = () => {
   const [govstack, setGovstack] = useState(false);
   const [registeringInstitution, setRegisteringInstitution] = useState('');
   const [program, setProgram] = useState('');
-  const [privateKey, setPrivateKey] = useState(DEFAULT_PRIVATE_KEY);
+  const [privateKey, setPrivateKey] = useState(env.DEFAULT_PRIVATE_KEY_MIFOS);
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<BatchSubmitResult | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -85,7 +86,7 @@ export const BatchSubmitForm = () => {
         privateKey,
       });
       const matched = await matchBeneficiariesFromCsv(file);
-      matched.forEach((b) => addTransaction(toInitiatedTransaction(b)));
+      matched.forEach((b) => addTransaction(toInitiatedTransaction(b, res.correlationId)));
       setSubmittedCount(matched.length);
       setStatus('success');
       setResult(res);

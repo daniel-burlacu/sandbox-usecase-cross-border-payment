@@ -41,6 +41,8 @@ export const TransactionsBatchRoadmapView = () => {
                         // 🔄 Transform each transaction to match InitiatedTransaction type
                         const transformedTx: InitiatedTransaction = {
                             payeeIdentity: tx.payeeIdentity,
+                            correlationId: '',
+                            payeeMsisdn: tx.phoneNumberPrimary,
                             payee: `${tx.firstName} ${tx.lastName}`,
                             duration: 0,
                             executionDate: new Date().toISOString(),
